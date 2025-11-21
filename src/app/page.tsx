@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Home, 
   User, 
@@ -25,8 +25,11 @@ import {
   Check,
   ChevronDown,
   AlertCircle,
-  Settings
+  Settings,
+  LogOut
 } from "lucide-react";
+import { useSupabaseData } from "@/hooks/useSupabaseData";
+import { signOut } from "@/lib/supabase-queries";
 
 type Screen = 
   | "welcome" 
@@ -40,18 +43,69 @@ type Screen =
   | "help";
 
 export default function INSSFacil() {
+  const {
+    user,
+    profile,
+    badges,
+    chatHistory,
+    loading,
+    createProfile,
+    changePlan,
+    earnBadge,
+    saveMessage,
+    updateProgress,
+    loadProgress
+  } = useSupabaseData();
+
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [userName, setUserName] = useState("");
-  const [userPlan, setUserPlan] = useState<"free" | "basic" | "premium" | "vip">("free");
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [badges, setBadges] = useState<string[]>([]);
+  
+  // Estados do formulário de cadastro
+  const [formData, setFormData] = useState({
+    full_name: "",
+    cpf: "",
+    birth_date: "",
+    phone: "",
+    accessibility_enabled: false
+  });
+
+  // Redireciona para home se já estiver logado
+  useEffect(() => {
+    if (!loading && user && profile) {
+      setCurrentScreen("home");
+    }
+  }, [loading, user, profile]);
 
   // Navegação
   const navigate = (screen: Screen) => {
     setCurrentScreen(screen);
     setMenuOpen(false);
   };
+
+  // Logout
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setCurrentScreen("welcome");
+    } catch (error) {
+      console.error("Erro ao sair:", error);
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0D0D0D]">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 mx-auto bg-gradient-to-br from-[#005AA6] to-[#003d73] rounded-full flex items-center justify-center animate-pulse">
+            <Shield className="w-8 h-8 text-[#FFD700]" />
+          </div>
+          <p className="text-gray-400">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Tela de Boas-vindas
   if (currentScreen === "welcome") {
@@ -109,6 +163,29 @@ export default function INSSFacil() {
 
   // Tela de Cadastro
   if (currentScreen === "register") {
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (!formData.full_name || !formData.cpf || !formData.birth_date || !formData.phone) {
+        alert("Por favor, preencha todos os campos");
+        return;
+      }
+
+      try {
+        // Aqui você pode adicionar lógica de autenticação
+        // Por enquanto, vamos simular criando um perfil
+        await createProfile(formData);
+        
+        // Adiciona badge de cadastro completo
+        await earnBadge("cadastro-completo");
+        
+        navigate("home");
+      } catch (error) {
+        console.error("Erro ao criar perfil:", error);
+        alert("Erro ao criar perfil. Tente novamente.");
+      }
+    };
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#0D0D0D]">
         <div className="max-w-md w-full space-y-6">
@@ -117,17 +194,18 @@ export default function INSSFacil() {
             <p className="text-gray-400">Preencha seus dados para começar</p>
           </div>
 
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Nome Completo
               </label>
               <input
                 type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
+                value={formData.full_name}
+                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 placeholder="Digite seu nome"
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#005AA6] focus:ring-2 focus:ring-[#005AA6]/20 transition-all"
+                required
               />
             </div>
 
@@ -137,8 +215,11 @@ export default function INSSFacil() {
               </label>
               <input
                 type="text"
+                value={formData.cpf}
+                onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
                 placeholder="000.000.000-00"
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#005AA6] focus:ring-2 focus:ring-[#005AA6]/20 transition-all"
+                required
               />
             </div>
 
@@ -148,7 +229,10 @@ export default function INSSFacil() {
               </label>
               <input
                 type="date"
+                value={formData.birth_date}
+                onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#005AA6] focus:ring-2 focus:ring-[#005AA6]/20 transition-all"
+                required
               />
             </div>
 
@@ -158,8 +242,11 @@ export default function INSSFacil() {
               </label>
               <input
                 type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="(00) 00000-0000"
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#005AA6] focus:ring-2 focus:ring-[#005AA6]/20 transition-all"
+                required
               />
             </div>
 
@@ -172,25 +259,25 @@ export default function INSSFacil() {
                     Possui alguma necessidade especial?
                   </p>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className="w-4 h-4 rounded border-gray-600 text-[#005AA6] focus:ring-[#005AA6]" />
+                    <input 
+                      type="checkbox" 
+                      checked={formData.accessibility_enabled}
+                      onChange={(e) => setFormData({ ...formData, accessibility_enabled: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 text-[#005AA6] focus:ring-[#005AA6]" 
+                    />
                     <span className="text-sm text-gray-400">Ativar recursos de acessibilidade</span>
                   </label>
                 </div>
               </div>
             </div>
-          </div>
 
-          <button
-            onClick={() => {
-              if (userName) {
-                navigate("home");
-              }
-            }}
-            disabled={!userName}
-            className="w-full py-4 px-6 bg-gradient-to-r from-[#005AA6] to-[#0077cc] text-white font-semibold rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[#005AA6]/50 hover:scale-105 transition-all duration-300"
-          >
-            Criar Conta
-          </button>
+            <button
+              type="submit"
+              className="w-full py-4 px-6 bg-gradient-to-r from-[#005AA6] to-[#0077cc] text-white font-semibold rounded-2xl shadow-lg hover:shadow-[#005AA6]/50 hover:scale-105 transition-all duration-300"
+            >
+              Criar Conta
+            </button>
+          </form>
 
           <button
             onClick={() => navigate("welcome")}
@@ -234,12 +321,12 @@ export default function INSSFacil() {
           </div>
         </div>
         
-        {userName && (
+        {profile && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full">
             <div className="w-6 h-6 bg-[#005AA6] rounded-full flex items-center justify-center">
               <User className="w-4 h-4" />
             </div>
-            <span className="text-sm hidden sm:inline">{userName.split(' ')[0]}</span>
+            <span className="text-sm hidden sm:inline">{profile.full_name.split(' ')[0]}</span>
           </div>
         )}
       </div>
@@ -265,6 +352,14 @@ export default function INSSFacil() {
                 )}
               </button>
             ))}
+            
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-500/10 text-red-400 transition-all"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="font-medium">Sair</span>
+            </button>
           </nav>
         </div>
       )}
@@ -281,7 +376,7 @@ export default function INSSFacil() {
           {/* Saudação */}
           <div className="space-y-2">
             <h1 className="text-2xl md:text-3xl font-bold">
-              Olá, {userName || "Bem-vindo"}! 👋
+              Olá, {profile?.full_name.split(' ')[0] || "Bem-vindo"}! 👋
             </h1>
             <p className="text-gray-400">
               Aqui está um resumo dos seus benefícios e serviços
@@ -336,23 +431,26 @@ export default function INSSFacil() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Cadastro Completo", earned: true },
-                { label: "Primeira Consulta", earned: badges.includes("first-query") },
-                { label: "Plano Ativo", earned: userPlan !== "free" },
-                { label: "Comunidade", earned: false }
-              ].map((badge, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-xl text-center transition-all ${
-                    badge.earned
-                      ? "bg-[#FFD700]/20 border border-[#FFD700]/50"
-                      : "bg-white/5 border border-white/10 opacity-50"
-                  }`}
-                >
-                  <div className="text-2xl mb-2">{badge.earned ? "🏆" : "🔒"}</div>
-                  <p className="text-xs text-gray-300">{badge.label}</p>
-                </div>
-              ))}
+                { label: "Cadastro Completo", type: "cadastro-completo" },
+                { label: "Primeira Consulta", type: "primeira-consulta" },
+                { label: "Plano Ativo", type: "plano-ativo" },
+                { label: "Comunidade", type: "comunidade" }
+              ].map((badge, idx) => {
+                const earned = badges.some(b => b.badge_type === badge.type);
+                return (
+                  <div
+                    key={idx}
+                    className={`p-4 rounded-xl text-center transition-all ${
+                      earned
+                        ? "bg-[#FFD700]/20 border border-[#FFD700]/50"
+                        : "bg-white/5 border border-white/10 opacity-50"
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">{earned ? "🏆" : "🔒"}</div>
+                    <p className="text-xs text-gray-300">{badge.label}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -405,18 +503,18 @@ export default function INSSFacil() {
           <div className="bg-gradient-to-br from-[#005AA6]/20 to-[#003d73]/20 border border-[#005AA6]/30 rounded-2xl p-6">
             <div className="flex flex-col md:flex-row items-center gap-6">
               <div className="w-24 h-24 bg-gradient-to-br from-[#005AA6] to-[#0077cc] rounded-full flex items-center justify-center text-3xl font-bold">
-                {userName.charAt(0).toUpperCase()}
+                {profile?.full_name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h2 className="text-2xl font-bold mb-1">{userName}</h2>
-                <p className="text-gray-400 mb-3">Membro desde 2024</p>
+                <h2 className="text-2xl font-bold mb-1">{profile?.full_name}</h2>
+                <p className="text-gray-400 mb-3">Membro desde {new Date(profile?.created_at || '').getFullYear()}</p>
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    userPlan === "free" 
+                    profile?.plan === "free" 
                       ? "bg-gray-700 text-gray-300"
                       : "bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-black"
                   }`}>
-                    Plano {userPlan === "free" ? "Gratuito" : userPlan.toUpperCase()}
+                    Plano {profile?.plan === "free" ? "Gratuito" : profile?.plan.toUpperCase()}
                   </span>
                   <span className="px-3 py-1 bg-[#005AA6]/20 text-[#005AA6] rounded-full text-sm font-medium">
                     {badges.length} Conquistas
@@ -434,10 +532,10 @@ export default function INSSFacil() {
             <h3 className="font-semibold text-lg mb-4">Informações Pessoais</h3>
             
             {[
-              { label: "CPF", value: "***.***.***-**", icon: Shield },
-              { label: "Data de Nascimento", value: "**/**/****", icon: Calendar },
-              { label: "Telefone", value: "(00) *****-****", icon: Phone },
-              { label: "E-mail", value: "usuario@email.com", icon: User }
+              { label: "CPF", value: profile?.cpf || "***.***.***-**", icon: Shield },
+              { label: "Data de Nascimento", value: profile?.birth_date || "**/**/****", icon: Calendar },
+              { label: "Telefone", value: profile?.phone || "(00) *****-****", icon: Phone },
+              { label: "E-mail", value: user?.email || "usuario@email.com", icon: User }
             ].map((item, idx) => (
               <div key={idx} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
                 <div className="flex items-center gap-3">
@@ -461,7 +559,7 @@ export default function INSSFacil() {
             {[
               { label: "Notificações", enabled: true },
               { label: "Modo Escuro", enabled: true },
-              { label: "Acessibilidade", enabled: false }
+              { label: "Acessibilidade", enabled: profile?.accessibility_enabled || false }
             ].map((pref, idx) => (
               <div key={idx} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
                 <span className="font-medium">{pref.label}</span>
@@ -486,7 +584,10 @@ export default function INSSFacil() {
             >
               Fazer Upgrade do Plano
             </button>
-            <button className="w-full p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-xl transition-all">
+            <button 
+              onClick={handleLogout}
+              className="w-full p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-xl transition-all"
+            >
               Sair da Conta
             </button>
           </div>
@@ -497,22 +598,38 @@ export default function INSSFacil() {
 
   // Tela Dr. INSS (Assistente Virtual)
   if (currentScreen === "assistant") {
-    const [messages, setMessages] = useState([
-      { role: "assistant", content: "Olá! Sou o Dr. INSS, seu assistente virtual. Como posso ajudar você hoje?" }
+    const [messages, setMessages] = useState(chatHistory.length > 0 ? chatHistory : [
+      { role: "assistant" as const, content: "Olá! Sou o Dr. INSS, seu assistente virtual. Como posso ajudar você hoje?" }
     ]);
     const [input, setInput] = useState("");
 
-    const sendMessage = () => {
+    const sendMessage = async () => {
       if (!input.trim()) return;
       
-      setMessages([...messages, 
-        { role: "user", content: input },
-        { role: "assistant", content: "Entendi sua pergunta. Com base nas informações do INSS, posso te ajudar com isso..." }
-      ]);
+      const userMessage = input;
       setInput("");
       
-      if (!badges.includes("first-query")) {
-        setBadges([...badges, "first-query"]);
+      // Adiciona mensagem do usuário
+      const newUserMsg = { role: "user" as const, content: userMessage };
+      setMessages(prev => [...prev, newUserMsg]);
+      
+      // Salva no banco
+      try {
+        await saveMessage("user", userMessage);
+        
+        // Simula resposta do assistente
+        const assistantResponse = "Entendi sua pergunta. Com base nas informações do INSS, posso te ajudar com isso...";
+        const newAssistantMsg = { role: "assistant" as const, content: assistantResponse };
+        setMessages(prev => [...prev, newAssistantMsg]);
+        
+        await saveMessage("assistant", assistantResponse);
+        
+        // Adiciona badge de primeira consulta
+        if (!badges.some(b => b.badge_type === "primeira-consulta")) {
+          await earnBadge("primeira-consulta");
+        }
+      } catch (error) {
+        console.error("Erro ao salvar mensagem:", error);
       }
     };
 
@@ -544,7 +661,7 @@ export default function INSSFacil() {
                 >
                   <Volume2 className="w-5 h-5" />
                 </button>
-                {userPlan === "free" && (
+                {profile?.plan === "free" && (
                   <span className="px-3 py-1 bg-[#FFD700]/20 text-[#FFD700] text-xs rounded-full">
                     Limitado
                   </span>
@@ -598,7 +715,7 @@ export default function INSSFacil() {
 
           {/* Input */}
           <div className="p-4 border-t border-white/10 bg-[#0D0D0D]">
-            {userPlan === "free" && (
+            {profile?.plan === "free" && (
               <div className="mb-3 p-3 bg-[#FFD700]/10 border border-[#FFD700]/30 rounded-xl flex items-start gap-2">
                 <Lock className="w-4 h-4 text-[#FFD700] flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-gray-300">
@@ -634,6 +751,7 @@ export default function INSSFacil() {
     const checklists = [
       {
         title: "Aposentadoria por Idade",
+        type: "aposentadoria-idade",
         steps: [
           { text: "Verificar tempo de contribuição", done: true },
           { text: "Reunir documentos pessoais", done: true },
@@ -644,6 +762,7 @@ export default function INSSFacil() {
       },
       {
         title: "Auxílio-Doença",
+        type: "auxilio-doenca",
         steps: [
           { text: "Obter atestado médico", done: false },
           { text: "Fazer perícia médica", done: false },
@@ -652,6 +771,7 @@ export default function INSSFacil() {
       },
       {
         title: "Pensão por Morte",
+        type: "pensao-morte",
         steps: [
           { text: "Certidão de óbito", done: false },
           { text: "Documentos do falecido", done: false },
@@ -860,7 +980,7 @@ export default function INSSFacil() {
                   ))}
                 </ul>
 
-                {userPlan === "free" ? (
+                {profile?.plan === "free" ? (
                   <button
                     onClick={() => navigate("plans")}
                     className="w-full py-3 bg-gradient-to-r from-[#005AA6] to-[#0077cc] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#005AA6]/30 transition-all"
@@ -899,6 +1019,7 @@ export default function INSSFacil() {
     const plans = [
       {
         name: "Básico",
+        value: "basic",
         price: "R$ 19,90",
         period: "/mês",
         color: "from-blue-600 to-blue-800",
@@ -913,6 +1034,7 @@ export default function INSSFacil() {
       },
       {
         name: "Premium",
+        value: "premium",
         price: "R$ 39,90",
         period: "/mês",
         color: "from-purple-600 to-purple-800",
@@ -928,6 +1050,7 @@ export default function INSSFacil() {
       },
       {
         name: "VIP",
+        value: "vip",
         price: "R$ 79,90",
         period: "/mês",
         color: "from-[#FFD700] to-[#FFA500]",
@@ -943,6 +1066,21 @@ export default function INSSFacil() {
         popular: false
       }
     ];
+
+    const handleSelectPlan = async (planValue: string) => {
+      try {
+        await changePlan(planValue as any);
+        
+        // Adiciona badge de plano ativo
+        if (!badges.some(b => b.badge_type === "plano-ativo")) {
+          await earnBadge("plano-ativo");
+        }
+        
+        navigate("home");
+      } catch (error) {
+        console.error("Erro ao mudar plano:", error);
+      }
+    };
 
     return (
       <div className="min-h-screen bg-[#0D0D0D]">
@@ -997,17 +1135,17 @@ export default function INSSFacil() {
                 </ul>
 
                 <button
-                  onClick={() => {
-                    setUserPlan(plan.name.toLowerCase() as any);
-                    navigate("home");
-                  }}
+                  onClick={() => handleSelectPlan(plan.value)}
+                  disabled={profile?.plan === plan.value}
                   className={`w-full py-3 font-semibold rounded-xl transition-all ${
-                    plan.popular
+                    profile?.plan === plan.value
+                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                      : plan.popular
                       ? "bg-gradient-to-r from-[#005AA6] to-[#0077cc] text-white hover:shadow-lg hover:shadow-[#005AA6]/30"
                       : "bg-white/5 hover:bg-white/10 border border-white/10 text-white"
                   }`}
                 >
-                  {userPlan === plan.name.toLowerCase() ? "Plano Atual" : "Assinar Agora"}
+                  {profile?.plan === plan.value ? "Plano Atual" : "Assinar Agora"}
                 </button>
               </div>
             ))}
